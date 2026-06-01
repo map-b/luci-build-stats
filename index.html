@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuCI Build Stats</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <hgroup>
+        <h1>LuCI Build Stats</h1>
+        <p>Comparing minification strategies across 7 build variants</p>
+      </hgroup>
+    </header>
+
+    <section id="controls">
+      <div class="grid">
+        <div>
+          <label for="variant-a">Variant A</label>
+          <select id="variant-a"></select>
+        </div>
+        <div>
+          <label for="variant-b">Variant B</label>
+          <select id="variant-b"></select>
+        </div>
+        <div>
+          <label for="delta-mode">
+            <input type="checkbox" id="delta-mode" role="switch">
+            Delta mode (A vs B %)
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section id="summary">
+      <div class="grid" id="summary-cards"></div>
+    </section>
+
+    <section id="charts">
+      <article>
+        <header><h2>APK Package Sizes</h2></header>
+        <div class="chart-container"><canvas id="chart-apk"></canvas></div>
+        <footer class="chart-footer"></footer>
+      </article>
+      <article>
+        <header><h2>Disk Image Sizes</h2></header>
+        <div class="chart-container"><canvas id="chart-images"></canvas></div>
+        <footer class="chart-footer"></footer>
+      </article>
+      <article>
+        <header><h2>Installed JavaScript Sizes</h2></header>
+        <div class="chart-container"><canvas id="chart-js"></canvas></div>
+        <footer class="chart-footer"></footer>
+      </article>
+    </section>
+
+    <section id="source-viewer">
+      <article>
+        <header>
+          <h2>Source Content Viewer</h2>
+          <div class="grid">
+            <div>
+              <label for="src-file">File</label>
+              <select id="src-file"></select>
+            </div>
+            <div>
+              <label for="src-variant-a">Variant A</label>
+              <select id="src-variant-a"></select>
+            </div>
+            <div>
+              <label for="src-variant-b">Variant B</label>
+              <select id="src-variant-b"></select>
+            </div>
+          </div>
+        </header>
+        <div class="grid" id="src-diff">
+          <div id="src-a-content" class="src-code"></div>
+          <div id="src-b-content" class="src-code"></div>
+        </div>
+      </article>
+    </section>
+
+    <section id="raw-data">
+      <article>
+        <header>
+          <h2>Raw Data</h2>
+          <details role="list">
+            <summary aria-haspopup="listbox">Export</summary>
+            <ul role="listbox">
+              <li><a href="#" id="export-csv">Download CSV</a></li>
+              <li><a href="#" id="export-json">Download JSON</a></li>
+            </ul>
+          </details>
+        </header>
+        <div id="raw-table"></div>
+      </article>
+    </section>
+
+    <footer>
+      <small>Generated: <span id="generated"></span> &middot; <a href="https://github.com/map-b/luci-build-stats">GitHub</a></small>
+    </footer>
+  </main>
+  <script src="assets/script.js"></script>
+</body>
+</html>
