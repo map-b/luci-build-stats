@@ -104,6 +104,26 @@
     });
   }
 
+  // ----- build info -----
+  function renderBuildInfo() {
+    const branch = DATA.variants[$('#variant-a').value].meta.branch;
+    const info = DATA.build_info[branch];
+    const container = $('#build-info-content');
+    if (!info) {
+      container.innerHTML = '';
+      return;
+    }
+    const owBranch = branch === 'snapshot' ? 'main' : 'openwrt-' + branch;
+    const owCommitUrl = info.openwrt_commit ? 'https://github.com/openwrt/openwrt/commit/' + info.openwrt_commit : '';
+    const luciCommit = info.luci_upstream_commit || "0a8763ee04b2f6a8ee22be2e127d981059388631";
+    const luciShort = luciCommit.slice(0, 7);
+    const luciCommitUrl = 'https://github.com/openwrt/luci/commit/' + luciCommit;
+
+    container.innerHTML =
+      '<article><header>OpenWRT <a href="' + owCommitUrl + '">' + info.openwrt_revision + '</a> <a href="https://github.com/openwrt/openwrt/tree/' + owBranch + '">' + owBranch + '</a></header></article>' +
+      '<article><header>LuCI <a href="' + luciCommitUrl + '">openwrt/luci@' + luciShort + '</a> <span>' + (info.luci_version || '') + '</span></header></article>';
+  }
+
   // ----- summary cards -----
   function renderSummary() {
     const a = DATA.variants[$('#variant-a').value];
@@ -289,11 +309,26 @@
     renderChart('chart-js', jsLabels, jsA, jsB, aLabel, bLabel, 'bytes', delta);
 
     // Update footers
-    $$('.chart-footer').forEach(el => el.textContent = '');
     const chartFooters = $$('.chart-footer');
-    if (chartFooters[0]) chartFooters[0].textContent = 'Total APK: ' + fmtBytes(a.packages.total_size_bytes) + ' / ' + fmtBytes(b.packages.total_size_bytes);
-    if (chartFooters[1]) chartFooters[1].textContent = 'Total Images: ' + fmtBytes(a.images.total_size_bytes) + ' / ' + fmtBytes(b.images.total_size_bytes);
-    if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(a.installed_js.total_size_bytes) + ' / ' + fmtBytes(b.installed_js.total_size_bytes);
+    chartFooters.forEach(el => el.textContent = '');
+
+    const aTot = a.packages.total_size_bytes;
+    const bTot = b.packages.total_size_bytes;
+    const apkDiff = bTot - aTot;
+    const apkPct = aTot ? (apkDiff / aTot) * 100 : 0;
+    if (chartFooters[0]) chartFooters[0].textContent = 'Total APK: ' + fmtBytes(aTot) + ' / ' + fmtBytes(bTot) + '  (Δ ' + (apkDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(apkDiff)) + ', ' + fmtPct(apkPct) + ')';
+
+    const aTotIm = a.images.total_size_bytes;
+    const bTotIm = b.images.total_size_bytes;
+    const imDiff = bTotIm - aTotIm;
+    const imPct = aTotIm ? (imDiff / aTotIm) * 100 : 0;
+    if (chartFooters[1]) chartFooters[1].textContent = 'Total Images: ' + fmtBytes(aTotIm) + ' / ' + fmtBytes(bTotIm) + '  (Δ ' + (imDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(imDiff)) + ', ' + fmtPct(imPct) + ')';
+
+    const aTotJs = a.installed_js.total_size_bytes;
+    const bTotJs = b.installed_js.total_size_bytes;
+    const jsDiff = bTotJs - aTotJs;
+    const jsPct = aTotJs ? (jsDiff / aTotJs) * 100 : 0;
+    if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(aTotJs) + ' / ' + fmtBytes(bTotJs) + '  (Δ ' + (jsDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(jsDiff)) + ', ' + fmtPct(jsPct) + ')';
   }
 
   // ----- source viewer -----
@@ -497,6 +532,7 @@
     if (prevFile && $('#src-file').querySelector('[value="' + prevFile.replace(/"/g, '\\"') + '"]')) {
       $('#src-file').value = prevFile;
     }
+    renderBuildInfo();
     renderSummary();
     renderCharts();
     renderSource();

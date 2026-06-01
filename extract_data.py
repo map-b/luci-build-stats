@@ -10,7 +10,7 @@ Usage:
   ./extract_data.py --dir esbuild=~/Downloads/build-artifacts_esbuild ...
 """
 
-import argparse, json, os, sys, tarfile
+import argparse, json, os, sys, tarfile, urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -35,8 +35,8 @@ VARIANTS_META = {
     "no_css_esbuild":     {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": False, "tool": "esbuild"},
     "no_css_jsmin":       {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": False, "tool": "jsmin"},
     "no_minifier":        {"profile": "Default", "branch": "25.12",   "js_minified": False, "css_minified": False, "tool": None},
-    "esbuild-snapshot":   {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "esbuild"},
-    "jsmin-snapshot":     {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "jsmin"},
+    "snapshot_esbuild":   {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "esbuild"},
+    "snapshot_jsmin":     {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "jsmin"},
 }
 
 
@@ -109,6 +109,55 @@ def collect_installed_js(targets_dir: Path, content_paths: set | None = None) ->
     }
 
 
+def collect_build_info(variant_dir: Path) -> dict:
+    targets_dir = variant_dir / "targets" / "malta" / "le"
+    info = {
+        "openwrt_revision": None,
+        "openwrt_commit": None,
+        "luci_version": None,
+        "luci_upstream_commit": None,
+    }
+
+    # version.buildinfo  (e.g. "r0-78c88ce")
+    ver_file = targets_dir / "version.buildinfo"
+    if ver_file.is_file():
+        raw = ver_file.read_text().strip()
+        info["openwrt_revision"] = raw
+        # parse commit hash (last segment after last hyphen or slash)
+        parts = raw.rsplit("-", 1)
+        if len(parts) == 2:
+            info["openwrt_commit"] = parts[1]
+
+    # luci index.json for version
+    idx_file = variant_dir / "packages" / "mipsel_24kc" / "luci" / "index.json"
+    if idx_file.is_file():
+        try:
+            idx = json.loads(idx_file.read_text())
+            for pkg_name in ("luci-base", "luci"):
+                ver = idx.get("packages", {}).get(pkg_name)
+                if ver:
+                    # e.g. "26.099.44769~4a308ba"
+                    info["luci_version"] = ver
+                    break
+        except Exception:
+            pass
+
+    # Fetch latest upstream LuCI commit from GitHub API
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/repos/openwrt/luci/commits?per_page=1",
+            headers={"User-Agent": "luci-build-stats/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            if isinstance(data, list) and len(data):
+                info["luci_upstream_commit"] = data[0]["sha"]
+    except Exception:
+        pass
+
+    return info
+
+
 def extract_variant(variant_id: str, variant_dir: Path,
                     content_paths: set | None = None) -> dict:
     targets_dir = variant_dir / "targets" / "malta" / "le"
@@ -131,7 +180,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", action="append", default=[],
                     help="Variant directory in form name=path")
-    ap.add_argument("-o", "--output", default="data/data.json")
+    ap.add_argument("-o", "--output", default=str(Path(__file__).parent / "data/data.json"))
     args = ap.parse_args()
     if not args.dir:
         dl = Path.home() / "Downloads"
@@ -177,11 +226,21 @@ def main():
         print(f"  {vid} ...", file=sys.stderr)
         variants[vid] = extract_variant(vid, vdir, content_paths=global_top)
 
+    # Collect build info per branch
+    build_info = {}
+    seen_branches = set()
+    for vid, v in sorted(variants.items()):
+        branch = v["meta"].get("branch")
+        if branch and branch not in seen_branches:
+            seen_branches.add(branch)
+            build_info[branch] = collect_build_info(dirs[vid])
+
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "version": 1,
         "generated": datetime.now().isoformat(),
+        "build_info": build_info,
         "variants": variants,
     }
     out_path.write_text(json.dumps(data, indent=2, default=str))
