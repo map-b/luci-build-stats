@@ -147,12 +147,15 @@
       const pct = av ? (diff / av) * 100 : 0;
 
       const art = document.createElement('article');
+      const sign = diff >= 0 ? '+' : '-';
+      const showPct = Math.abs(pct).toFixed(1) + '%';
+      const showDiff = sign + fmtBytes(Math.abs(diff));
+      const valueColor = diff > 0 ? 'var(--negative)' : diff < 0 ? 'var(--positive)' : 'var(--muted)';
       art.innerHTML =
         '<header>' + cat.label + '</header>' +
-        '<div class="value">' + cat.fmt(va) + '</div>' +
-        (delta ? '<div class="delta" style="color:' + (diff > 0 ? 'var(--negative)' : diff < 0 ? 'var(--positive)' : 'var(--muted)') + '">' +
-          'Δ ' + (diff >= 0 ? '+' : '-') + fmtBytes(diff) + ' (' + fmtPct(pct) + ')' +
-          '</div>' : '') +
+        '<div class="value" style="color:' + valueColor + '">' +
+          showPct + ' (' + showDiff + ')' +
+        '</div>' +
         '<small style="color:var(--muted)">' + $('#variant-a').value + ': ' + cat.fmt(va) + '<br>' +
         $('#variant-b').value + ': ' + cat.fmt(vb) + '</small>';
       container.appendChild(art);
