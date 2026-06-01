@@ -66,7 +66,7 @@
     const fragSA = document.createDocumentFragment();
     const fragSB = document.createDocumentFragment();
 
-    ids.forEach(id => {
+    ids.forEach((id, i) => {
       const o = document.createElement('option');
       o.value = id;
       o.textContent = id;
@@ -86,22 +86,8 @@
     srcSelA.value = 'jsmin';
     srcSelB.value = 'esbuild';
 
-    selA.addEventListener('change', function () {
-      srcSelA.value = selA.value;
-      render();
-    });
-    selB.addEventListener('change', function () {
-      srcSelB.value = selB.value;
-      render();
-    });
-    srcSelA.addEventListener('change', function () {
-      selA.value = srcSelA.value;
-      render();
-    });
-    srcSelB.addEventListener('change', function () {
-      selB.value = srcSelB.value;
-      render();
-    });
+    selA.addEventListener('change', render);
+    selB.addEventListener('change', render);
   }
 
   // ----- summary cards -----
@@ -289,32 +275,17 @@
     renderChart('chart-js', jsLabels, jsA, jsB, aLabel, bLabel, 'bytes', delta);
 
     // Update footers
+    $$('.chart-footer').forEach(el => el.textContent = '');
     const chartFooters = $$('.chart-footer');
-    chartFooters.forEach(el => el.textContent = '');
-
-    const aTot = a.packages.total_size_bytes;
-    const bTot = b.packages.total_size_bytes;
-    const apkDiff = bTot - aTot;
-    const apkPct = aTot ? (apkDiff / aTot) * 100 : 0;
-    if (chartFooters[0]) chartFooters[0].textContent = 'Total APK: ' + fmtBytes(aTot) + ' / ' + fmtBytes(bTot) + '  (Δ ' + (apkDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(apkDiff)) + ', ' + fmtPct(apkPct) + ')';
-
-    const aTotIm = a.images.total_size_bytes;
-    const bTotIm = b.images.total_size_bytes;
-    const imDiff = bTotIm - aTotIm;
-    const imPct = aTotIm ? (imDiff / aTotIm) * 100 : 0;
-    if (chartFooters[1]) chartFooters[1].textContent = 'Total Images: ' + fmtBytes(aTotIm) + ' / ' + fmtBytes(bTotIm) + '  (Δ ' + (imDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(imDiff)) + ', ' + fmtPct(imPct) + ')';
-
-    const aTotJs = a.installed_js.total_size_bytes;
-    const bTotJs = b.installed_js.total_size_bytes;
-    const jsDiff = bTotJs - aTotJs;
-    const jsPct = aTotJs ? (jsDiff / aTotJs) * 100 : 0;
-    if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(aTotJs) + ' / ' + fmtBytes(bTotJs) + '  (Δ ' + (jsDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(jsDiff)) + ', ' + fmtPct(jsPct) + ')';
+    if (chartFooters[0]) chartFooters[0].textContent = 'Total APK: ' + fmtBytes(a.packages.total_size_bytes) + ' / ' + fmtBytes(b.packages.total_size_bytes);
+    if (chartFooters[1]) chartFooters[1].textContent = 'Total Images: ' + fmtBytes(a.images.total_size_bytes) + ' / ' + fmtBytes(b.images.total_size_bytes);
+    if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(a.installed_js.total_size_bytes) + ' / ' + fmtBytes(b.installed_js.total_size_bytes);
   }
 
   // ----- source viewer -----
   function populateSourceFiles() {
     const sel = $('#src-file');
-    const a = DATA.variants[$('#src-variant-a').value];
+    const a = DATA.variants[Object.keys(DATA.variants)[0]];
     const files = a.installed_js.files
       .filter(f => f.content)
       .sort((x, y) => y.size_bytes - x.size_bytes);
@@ -326,11 +297,12 @@
       o.textContent = f.path.replace(/^\.\//, '') + ' (' + fmtBytes(f.size_bytes) + ')';
       frag.appendChild(o);
     });
-    sel.innerHTML = '';
     sel.appendChild(frag);
     if (files.length) sel.value = files[0].path;
 
     sel.addEventListener('change', renderSource);
+    $('#src-variant-a').addEventListener('change', renderSource);
+    $('#src-variant-b').addEventListener('change', renderSource);
   }
 
   function renderSource() {
@@ -507,11 +479,6 @@
 
   // ----- main render -----
   function render() {
-    const prevFile = $('#src-file').value;
-    populateSourceFiles();
-    if (prevFile && $('#src-file').querySelector('[value="' + prevFile.replace(/"/g, '\\"') + '"]')) {
-      $('#src-file').value = prevFile;
-    }
     renderSummary();
     renderCharts();
     renderSource();
