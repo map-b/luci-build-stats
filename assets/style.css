@@ -87,6 +87,15 @@ article header .grid {
   display: none;
 }
 
+#source-viewer header div:first-of-type {
+  width: 100%;
+}
+
+.full-width {
+  width: 100%;
+  max-width: 100%;
+}
+
 #src-diff {
   gap: 0;
 }

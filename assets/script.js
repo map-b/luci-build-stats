@@ -11,9 +11,10 @@
 
   function fmtBytes(b) {
     if (b === 0) return '0 B';
+    const abs = Math.abs(b);
     const units = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.min(Math.floor(Math.log(b) / Math.log(1024)), units.length - 1);
-    return (b / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+    const i = Math.min(Math.floor(Math.log(abs) / Math.log(1024)), units.length - 1);
+    return (abs / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
   }
 
   function fmtPct(v) {
@@ -28,7 +29,24 @@
     return { profile: 'Default', branch: '25.12', tool: parts[0] || '?', };
   }
 
-  // ----- data loading -----
+  // ----- sort and label helpers -----
+  function sortByDiff(labels, aVals, bVals) {
+    const idx = labels.map((_, i) => i);
+    idx.sort((i, j) => Math.abs(bVals[j] - aVals[j]) - Math.abs(bVals[i] - aVals[i]));
+    return {
+      labels: idx.map(i => labels[i]),
+      aVals: idx.map(i => aVals[i]),
+      bVals: idx.map(i => bVals[i]),
+    };
+  }
+
+  function annotateLabels(labels, aVals, bVals) {
+    return labels.map((l, i) => {
+      if (aVals[i] === bVals[i]) return l + '  =';
+      const diff = bVals[i] - aVals[i];
+      return l + '  ' + (diff >= 0 ? '+' : '-') + fmtBytes(Math.abs(diff));
+    });
+  }
   function loadData() {
     return fetch('data/data.json')
       .then(r => r.json())
@@ -48,7 +66,7 @@
     const fragSA = document.createDocumentFragment();
     const fragSB = document.createDocumentFragment();
 
-    ids.forEach((id, i) => {
+    ids.forEach(id => {
       const o = document.createElement('option');
       o.value = id;
       o.textContent = id;
@@ -63,13 +81,27 @@
     srcSelA.appendChild(fragSA);
     srcSelB.appendChild(fragSB);
 
-    selA.value = 'esbuild';
-    selB.value = 'no_minifier';
-    srcSelA.value = 'esbuild';
-    srcSelB.value = 'no_minifier';
+    selA.value = 'jsmin';
+    selB.value = 'esbuild';
+    srcSelA.value = 'jsmin';
+    srcSelB.value = 'esbuild';
 
-    selA.addEventListener('change', render);
-    selB.addEventListener('change', render);
+    selA.addEventListener('change', function () {
+      srcSelA.value = selA.value;
+      render();
+    });
+    selB.addEventListener('change', function () {
+      srcSelB.value = selB.value;
+      render();
+    });
+    srcSelA.addEventListener('change', function () {
+      selA.value = srcSelA.value;
+      render();
+    });
+    srcSelB.addEventListener('change', function () {
+      selB.value = srcSelB.value;
+      render();
+    });
   }
 
   // ----- summary cards -----
@@ -99,7 +131,7 @@
         '<header>' + cat.label + '</header>' +
         '<div class="value">' + cat.fmt(va) + '</div>' +
         (delta ? '<div class="delta" style="color:' + (diff > 0 ? 'var(--negative)' : diff < 0 ? 'var(--positive)' : 'var(--muted)') + '">' +
-          'Δ ' + (diff >= 0 ? '+' : '') + fmtBytes(diff) + ' (' + fmtPct(pct) + ')' +
+          'Δ ' + (diff >= 0 ? '+' : '-') + fmtBytes(diff) + ' (' + fmtPct(pct) + ')' +
           '</div>' : '') +
         '<small style="color:var(--muted)">' + $('#variant-a').value + ': ' + cat.fmt(va) + '<br>' +
         $('#variant-b').value + ': ' + cat.fmt(vb) + '</small>';
@@ -116,6 +148,8 @@
     posBorder: 'rgba(220, 53, 69, 1)',
     neg: 'rgba(40, 167, 69, 0.7)',
     negBorder: 'rgba(40, 167, 69, 1)',
+    equal: 'rgba(108, 117, 125, 0.4)',
+    equalBorder: 'rgba(108, 117, 125, 0.7)',
   };
 
   function renderChart(canvasId, labels, aVals, bVals, aLabel, bLabel, unit, isDelta) {
@@ -135,8 +169,14 @@
     if (isDelta) {
       const diffs = labels.map((_, i) => bVals[i] - aVals[i]);
       const pcts = labels.map((_, i) => aVals[i] ? (diffs[i] / aVals[i]) * 100 : 0);
-      const colors = diffs.map(d => d >= 0 ? COLORS.pos : COLORS.neg);
-      const borders = diffs.map(d => d >= 0 ? COLORS.posBorder : COLORS.negBorder);
+      const colors = labels.map((_, i) => {
+        if (aVals[i] === bVals[i]) return COLORS.equal;
+        return diffs[i] >= 0 ? COLORS.pos : COLORS.neg;
+      });
+      const borders = labels.map((_, i) => {
+        if (aVals[i] === bVals[i]) return COLORS.equalBorder;
+        return diffs[i] >= 0 ? COLORS.posBorder : COLORS.negBorder;
+      });
 
       datasets = [{
         label: 'Δ ' + aLabel + ' vs ' + bLabel + ' (%)',
@@ -146,19 +186,22 @@
         borderWidth: 1,
       }];
     } else {
+      const aColors = labels.map((_, i) => aVals[i] === bVals[i] ? COLORS.equal : COLORS.a);
+      const bColors = labels.map((_, i) => aVals[i] === bVals[i] ? COLORS.equal : COLORS.b);
+
       datasets = [
         {
           label: aLabel,
           data: aVals,
-          backgroundColor: COLORS.a,
-          borderColor: COLORS.aBorder,
+          backgroundColor: aColors,
+          borderColor: aColors.map(c => c.replace('0.4', '0.7').replace('0.7', '1')),
           borderWidth: 1,
         },
         {
           label: bLabel,
           data: bVals,
-          backgroundColor: COLORS.b,
-          borderColor: COLORS.bBorder,
+          backgroundColor: bColors,
+          borderColor: bColors.map(c => c.replace('0.4', '0.7').replace('0.7', '1')),
           borderWidth: 1,
         },
       ];
@@ -178,9 +221,12 @@
             callbacks: {
               label: function (ctx) {
                 const i = ctx.dataIndex;
+                if (aVals[i] === bVals[i]) {
+                  return '= ' + fmtBytes(aVals[i]) + ' (no change)';
+                }
                 if (isDeltaBool) {
                   const diff = bVals[i] - aVals[i];
-                  return ctx.parsed.x.toFixed(1) + '%  (' + (diff >= 0 ? '+' : '') + fmtBytes(diff) + ')';
+                  return ctx.parsed.x.toFixed(1) + '%  (' + (diff >= 0 ? '+' : '-') + fmtBytes(diff) + ')';
                 }
                 return fmtBytes(ctx.parsed.x);
               }
@@ -213,41 +259,62 @@
 
     // APK packages
     const apkNames = [...new Set([...a.packages.list, ...b.packages.list].map(p => p.name))].sort();
-    const apkA = apkNames.map(n => { const p = a.packages.list.find(x => x.name === n); return p ? p.size_bytes : 0; });
-    const apkB = apkNames.map(n => { const p = b.packages.list.find(x => x.name === n); return p ? p.size_bytes : 0; });
-    renderChart('chart-apk', apkNames, apkA, apkB, aLabel, bLabel, 'bytes', delta);
+    let apkA = apkNames.map(n => { const p = a.packages.list.find(x => x.name === n); return p ? p.size_bytes : 0; });
+    let apkB = apkNames.map(n => { const p = b.packages.list.find(x => x.name === n); return p ? p.size_bytes : 0; });
+    const apkSorted = sortByDiff(apkNames, apkA, apkB);
+    const apkLabels = annotateLabels(apkSorted.labels, apkSorted.aVals, apkSorted.bVals);
+    renderChart('chart-apk', apkLabels, apkSorted.aVals, apkSorted.bVals, aLabel, bLabel, 'bytes', delta);
 
     // Images
     const imgNames = [...new Set([...Object.keys(a.images.list), ...Object.keys(b.images.list)])].sort();
-    const imgA = imgNames.map(n => a.images.list[n] || 0);
-    const imgB = imgNames.map(n => b.images.list[n] || 0);
-    renderChart('chart-images', imgNames, imgA, imgB, aLabel, bLabel, 'bytes', delta);
+    let imgA = imgNames.map(n => a.images.list[n] || 0);
+    let imgB = imgNames.map(n => b.images.list[n] || 0);
+    const imgSorted = sortByDiff(imgNames, imgA, imgB);
+    const imgLabels = annotateLabels(imgSorted.labels, imgSorted.aVals, imgSorted.bVals);
+    renderChart('chart-images', imgLabels, imgSorted.aVals, imgSorted.bVals, aLabel, bLabel, 'bytes', delta);
 
-    // Installed JS (top 30 files)
+    // Installed JS (top 30 by diff)
     const jsAll = [...new Set([...a.installed_js.files, ...b.installed_js.files].map(f => f.path))];
-    const jsTop = jsAll.map(p => {
+    let jsTop = jsAll.map(p => {
       const fa = a.installed_js.files.find(f => f.path === p);
       const fb = b.installed_js.files.find(f => f.path === p);
       return { path: p, a: fa ? fa.size_bytes : 0, b: fb ? fb.size_bytes : 0 };
-    }).sort((x, y) => Math.max(y.a, y.b) - Math.max(x.a, x.b)).slice(0, 30);
-
+    });
+    jsTop.sort((x, y) => Math.abs(y.b - y.a) - Math.abs(x.b - x.a));
+    jsTop = jsTop.slice(0, 30);
     const jsNames = jsTop.map(x => x.path.replace(/^\.\//, ''));
     const jsA = jsTop.map(x => x.a);
     const jsB = jsTop.map(x => x.b);
-    renderChart('chart-js', jsNames, jsA, jsB, aLabel, bLabel, 'bytes', delta);
+    const jsLabels = annotateLabels(jsNames, jsA, jsB);
+    renderChart('chart-js', jsLabels, jsA, jsB, aLabel, bLabel, 'bytes', delta);
 
     // Update footers
-    $$('.chart-footer').forEach(el => el.textContent = '');
     const chartFooters = $$('.chart-footer');
-    if (chartFooters[0]) chartFooters[0].textContent = 'Total APK: ' + fmtBytes(a.packages.total_size_bytes) + ' / ' + fmtBytes(b.packages.total_size_bytes);
-    if (chartFooters[1]) chartFooters[1].textContent = 'Total Images: ' + fmtBytes(a.images.total_size_bytes) + ' / ' + fmtBytes(b.images.total_size_bytes);
-    if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(a.installed_js.total_size_bytes) + ' / ' + fmtBytes(b.installed_js.total_size_bytes);
+    chartFooters.forEach(el => el.textContent = '');
+
+    const aTot = a.packages.total_size_bytes;
+    const bTot = b.packages.total_size_bytes;
+    const apkDiff = bTot - aTot;
+    const apkPct = aTot ? (apkDiff / aTot) * 100 : 0;
+    if (chartFooters[0]) chartFooters[0].textContent = 'Total APK: ' + fmtBytes(aTot) + ' / ' + fmtBytes(bTot) + '  (Δ ' + (apkDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(apkDiff)) + ', ' + fmtPct(apkPct) + ')';
+
+    const aTotIm = a.images.total_size_bytes;
+    const bTotIm = b.images.total_size_bytes;
+    const imDiff = bTotIm - aTotIm;
+    const imPct = aTotIm ? (imDiff / aTotIm) * 100 : 0;
+    if (chartFooters[1]) chartFooters[1].textContent = 'Total Images: ' + fmtBytes(aTotIm) + ' / ' + fmtBytes(bTotIm) + '  (Δ ' + (imDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(imDiff)) + ', ' + fmtPct(imPct) + ')';
+
+    const aTotJs = a.installed_js.total_size_bytes;
+    const bTotJs = b.installed_js.total_size_bytes;
+    const jsDiff = bTotJs - aTotJs;
+    const jsPct = aTotJs ? (jsDiff / aTotJs) * 100 : 0;
+    if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(aTotJs) + ' / ' + fmtBytes(bTotJs) + '  (Δ ' + (jsDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(jsDiff)) + ', ' + fmtPct(jsPct) + ')';
   }
 
   // ----- source viewer -----
   function populateSourceFiles() {
     const sel = $('#src-file');
-    const a = DATA.variants[Object.keys(DATA.variants)[0]];
+    const a = DATA.variants[$('#src-variant-a').value];
     const files = a.installed_js.files
       .filter(f => f.content)
       .sort((x, y) => y.size_bytes - x.size_bytes);
@@ -259,12 +326,11 @@
       o.textContent = f.path.replace(/^\.\//, '') + ' (' + fmtBytes(f.size_bytes) + ')';
       frag.appendChild(o);
     });
+    sel.innerHTML = '';
     sel.appendChild(frag);
     if (files.length) sel.value = files[0].path;
 
     sel.addEventListener('change', renderSource);
-    $('#src-variant-a').addEventListener('change', renderSource);
-    $('#src-variant-b').addEventListener('change', renderSource);
   }
 
   function renderSource() {
@@ -441,6 +507,11 @@
 
   // ----- main render -----
   function render() {
+    const prevFile = $('#src-file').value;
+    populateSourceFiles();
+    if (prevFile && $('#src-file').querySelector('[value="' + prevFile.replace(/"/g, '\\"') + '"]')) {
+      $('#src-file').value = prevFile;
+    }
     renderSummary();
     renderCharts();
     renderSource();
