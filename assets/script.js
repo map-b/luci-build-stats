@@ -338,9 +338,16 @@
   function populateSourceFiles() {
     const sel = $('#src-file');
     const a = DATA.variants[$('#src-variant-a').value];
+    const b = DATA.variants[$('#src-variant-b').value];
+    const bMap = {};
+    b.installed_js.files.forEach(f => bMap[f.path] = f.size_bytes);
     const files = a.installed_js.files
       .filter(f => f.content)
-      .sort((x, y) => y.size_bytes - x.size_bytes);
+      .sort((x, y) => {
+        const diffX = Math.abs(x.size_bytes - (bMap[x.path] || 0));
+        const diffY = Math.abs(y.size_bytes - (bMap[y.path] || 0));
+        return diffY - diffX;
+      });
 
     const frag = document.createDocumentFragment();
     files.forEach(f => {
