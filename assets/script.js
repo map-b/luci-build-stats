@@ -429,6 +429,8 @@
     const vB = $('#src-variant-b').value;
 
     if (!filePath) {
+      $('label[for="src-variant-a"]').textContent = 'Variant A';
+      $('label[for="src-variant-b"]').textContent = 'Variant B';
       $('#source-viewer').style.display = 'none';
       return;
     }
@@ -441,11 +443,17 @@
     }
 
     if (!aData || !bData) {
+      $('label[for="src-variant-a"]').textContent = 'Variant A';
+      $('label[for="src-variant-b"]').textContent = 'Variant B';
       $('#source-viewer').style.display = 'none';
       return;
     }
 
     $('#source-viewer').style.display = 'block';
+    $('label[for="src-variant-a"]').textContent = 'Variant A (' + fmtBytes(aData.size_bytes) + ')';
+    const diff = bData.size_bytes - aData.size_bytes;
+    const deltaColor = diff > 0 ? 'var(--negative)' : diff < 0 ? 'var(--positive)' : 'var(--muted)';
+    $('label[for="src-variant-b"]').innerHTML = 'Variant B (' + fmtBytes(bData.size_bytes) + ') <span style="color:' + deltaColor + '">Δ ' + (diff >= 0 ? '+' : '-') + fmtBytes(Math.abs(diff)) + ' (' + fmtPct(aData.size_bytes ? (diff / aData.size_bytes) * 100 : 0) + ')</span>';
 
     const aContent = aData.content || '';
     const bContent = bData.content || '';
