@@ -2,12 +2,27 @@
   'use strict';
 
   let DATA = null;
-  let charts = { apk: null, images: null, js: null };
+  let charts = { apk: null, images: null, js: null, css: null };
 
   // ----- helpers -----
   function $(sel, ctx) { return (ctx || document).querySelector(sel); }
 
   function $$(sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); }
+
+  function getUrlParams() {
+    const p = new URLSearchParams(window.location.search);
+    return { a: p.get('a'), b: p.get('b'), delta: p.get('delta') };
+  }
+
+  function updateUrlParams(a, b, delta) {
+    const p = new URLSearchParams();
+    if (a) p.set('a', a);
+    if (b) p.set('b', b);
+    if (delta) p.set('delta', '1');
+    const qs = p.toString();
+    const url = qs ? window.location.pathname + '?' + qs : window.location.pathname;
+    history.replaceState(null, '', url);
+  }
 
   function fmtBytes(b) {
     if (b === 0) return '0 B';
@@ -81,25 +96,33 @@
     srcSelA.appendChild(fragSA);
     srcSelB.appendChild(fragSB);
 
-    selA.value = 'jsmin';
-    selB.value = 'esbuild';
-    srcSelA.value = 'jsmin';
-    srcSelB.value = 'esbuild';
+    const params = getUrlParams();
+    const idsArr = Object.keys(DATA.variants);
+    function valid(v) { return v && idsArr.includes(v); }
+
+    selA.value = valid(params.a) ? params.a : 'jsmin';
+    selB.value = valid(params.b) ? params.b : 'esbuild';
+    srcSelA.value = selA.value;
+    srcSelB.value = selB.value;
 
     selA.addEventListener('change', function () {
       srcSelA.value = selA.value;
+      updateUrlParams(selA.value, selB.value, $('#delta-mode').checked);
       render();
     });
     selB.addEventListener('change', function () {
       srcSelB.value = selB.value;
+      updateUrlParams(selA.value, selB.value, $('#delta-mode').checked);
       render();
     });
     srcSelA.addEventListener('change', function () {
       selA.value = srcSelA.value;
+      updateUrlParams(selA.value, selB.value, $('#delta-mode').checked);
       render();
     });
     srcSelB.addEventListener('change', function () {
       selB.value = srcSelB.value;
+      updateUrlParams(selA.value, selB.value, $('#delta-mode').checked);
       render();
     });
   }
@@ -135,6 +158,7 @@
       { label: 'APK Packages', key: 'packages', fmt: v => fmtBytes(v.total_size_bytes) },
       { label: 'Disk Images', key: 'images', fmt: v => fmtBytes(v.total_size_bytes) },
       { label: 'Installed JS', key: 'installed_js', fmt: v => fmtBytes(v.total_size_bytes) + ' (' + v.file_count + ' files)' },
+      { label: 'Installed CSS', key: 'installed_css', fmt: v => fmtBytes(v.total_size_bytes) + ' (' + v.file_count + ' files)' },
     ];
 
     container.innerHTML = '';
@@ -311,6 +335,21 @@
     const jsLabels = annotateLabels(jsNames, jsA, jsB);
     renderChart('chart-js', jsLabels, jsA, jsB, aLabel, bLabel, 'bytes', delta);
 
+    // CSS files (top 30 by diff)
+    const cssAll = [...new Set([...a.installed_css.files, ...b.installed_css.files].map(f => f.path))];
+    let cssTop = cssAll.map(p => {
+      const fa = a.installed_css.files.find(f => f.path === p);
+      const fb = b.installed_css.files.find(f => f.path === p);
+      return { path: p, a: fa ? fa.size_bytes : 0, b: fb ? fb.size_bytes : 0 };
+    });
+    cssTop.sort((x, y) => Math.abs(y.b - y.a) - Math.abs(x.b - x.a));
+    cssTop = cssTop.slice(0, 30);
+    const cssNames = cssTop.map(x => x.path.replace(/^\.\//, ''));
+    const cssA = cssTop.map(x => x.a);
+    const cssB = cssTop.map(x => x.b);
+    const cssLabels = annotateLabels(cssNames, cssA, cssB);
+    renderChart('chart-css', cssLabels, cssA, cssB, aLabel, bLabel, 'bytes', delta);
+
     // Update footers
     const chartFooters = $$('.chart-footer');
     chartFooters.forEach(el => el.textContent = '');
@@ -332,28 +371,31 @@
     const jsDiff = bTotJs - aTotJs;
     const jsPct = aTotJs ? (jsDiff / aTotJs) * 100 : 0;
     if (chartFooters[2]) chartFooters[2].textContent = 'Total JS: ' + fmtBytes(aTotJs) + ' / ' + fmtBytes(bTotJs) + '  (Δ ' + (jsDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(jsDiff)) + ', ' + fmtPct(jsPct) + ')';
+
+    const aTotCss = a.installed_css.total_size_bytes;
+    const bTotCss = b.installed_css.total_size_bytes;
+    const cssDiff = bTotCss - aTotCss;
+    const cssPct = aTotCss ? (cssDiff / aTotCss) * 100 : 0;
+    if (chartFooters[3]) chartFooters[3].textContent = 'Total CSS: ' + fmtBytes(aTotCss) + ' / ' + fmtBytes(bTotCss) + '  (Δ ' + (cssDiff >= 0 ? '+' : '-') + fmtBytes(Math.abs(cssDiff)) + ', ' + fmtPct(cssPct) + ')';
   }
 
   // ----- source viewer -----
   function populateSourceFiles() {
     const sel = $('#src-file');
     const a = DATA.variants[$('#src-variant-a').value];
-    const b = DATA.variants[$('#src-variant-b').value];
-    const bMap = {};
-    b.installed_js.files.forEach(f => bMap[f.path] = f.size_bytes);
-    const files = a.installed_js.files
+    let files = a.installed_js.files
       .filter(f => f.content)
-      .sort((x, y) => {
-        const diffX = Math.abs(x.size_bytes - (bMap[x.path] || 0));
-        const diffY = Math.abs(y.size_bytes - (bMap[y.path] || 0));
-        return diffY - diffX;
-      });
+      .map(f => ({ ...f, type: 'js' }));
+    const cssFiles = a.installed_css.files
+      .filter(f => f.content)
+      .map(f => ({ ...f, type: 'css' }));
+    files = files.concat(cssFiles).sort((x, y) => y.size_bytes - x.size_bytes);
 
     const frag = document.createDocumentFragment();
     files.forEach(f => {
       const o = document.createElement('option');
       o.value = f.path;
-      o.textContent = f.path.replace(/^\.\//, '') + ' (' + fmtBytes(f.size_bytes) + ')';
+      o.textContent = '[' + f.type + '] ' + f.path.replace(/^\.\//, '') + ' (' + fmtBytes(f.size_bytes) + ')';
       frag.appendChild(o);
     });
     sel.innerHTML = '';
@@ -373,8 +415,12 @@
       return;
     }
 
-    const aData = DATA.variants[vA].installed_js.files.find(f => f.path === filePath);
-    const bData = DATA.variants[vB].installed_js.files.find(f => f.path === filePath);
+    let aData = DATA.variants[vA].installed_js.files.find(f => f.path === filePath);
+    let bData = DATA.variants[vB].installed_js.files.find(f => f.path === filePath);
+    if (!aData || !bData) {
+      aData = DATA.variants[vA].installed_css.files.find(f => f.path === filePath);
+      bData = DATA.variants[vB].installed_css.files.find(f => f.path === filePath);
+    }
 
     if (!aData || !bData) {
       $('#source-viewer').style.display = 'none';
@@ -446,6 +492,8 @@
     rows.push({ metric: 'Image File Count', values: variantIds.map(id => DATA.variants[id].images.count) });
     rows.push({ metric: 'Installed JS Total (bytes)', values: variantIds.map(id => DATA.variants[id].installed_js.total_size_bytes) });
     rows.push({ metric: 'Installed JS File Count', values: variantIds.map(id => DATA.variants[id].installed_js.file_count) });
+    rows.push({ metric: 'Installed CSS Total (bytes)', values: variantIds.map(id => DATA.variants[id].installed_css.total_size_bytes) });
+    rows.push({ metric: 'Installed CSS File Count', values: variantIds.map(id => DATA.variants[id].installed_css.file_count) });
 
     // Separator for per-package
     // Per-package: collect all unique package names
@@ -484,6 +532,26 @@
         metric: '  js: ' + jsPath.path.replace(/^\.\//, ''),
         values: variantIds.map(id => {
           const f = DATA.variants[id].installed_js.files.find(x => x.path === jsPath.path);
+          return f ? f.size_bytes : 0;
+        })
+      });
+    });
+
+    // Per-CSS file (top 30)
+    const allCssPaths = [...new Set(variantIds.flatMap(id => DATA.variants[id].installed_css.files.map(f => f.path)))];
+    const cssTop = allCssPaths.map(p => {
+      const maxSize = Math.max(...variantIds.map(id => {
+        const f = DATA.variants[id].installed_css.files.find(x => x.path === p);
+        return f ? f.size_bytes : 0;
+      }));
+      return { path: p, maxSize };
+    }).sort((x, y) => y.maxSize - x.maxSize).slice(0, 30);
+
+    cssTop.forEach(cssPath => {
+      rows.push({
+        metric: '  css: ' + cssPath.path.replace(/^\.\//, ''),
+        values: variantIds.map(id => {
+          const f = DATA.variants[id].installed_css.files.find(x => x.path === cssPath.path);
           return f ? f.size_bytes : 0;
         })
       });
@@ -552,11 +620,18 @@
   loadData().then(function () {
     $('#generated').textContent = DATA.generated;
     populateSelects();
+
+    const params = getUrlParams();
+    if (params.delta === '1') $('#delta-mode').checked = true;
+
     populateSourceFiles();
     render();
     renderRawData();
     setupExport();
-    $('#delta-mode').addEventListener('change', render);
+    $('#delta-mode').addEventListener('change', function () {
+      updateUrlParams($('#variant-a').value, $('#variant-b').value, this.checked);
+      render();
+    });
   }).catch(function (err) {
     document.body.innerHTML = '<main class="container"><article style="margin-top:2rem"><h2>Failed to load data</h2><p>' + err.message + '</p></article></main>';
   });
