@@ -148,18 +148,21 @@
   }
 
   // ----- variant meta -----
+  function runUrl(runId) { return 'https://github.com/map-b/luci/actions/runs/' + runId; }
+
   function renderVariantMeta() {
     const aId = $('#variant-a').value;
     const bId = $('#variant-b').value;
     const aMeta = DATA.variants[aId].meta;
     const bMeta = DATA.variants[bId].meta;
-    const f = m => {
+    const h = m => {
       const js = m.js_minified ? '\u2713' : '\u2717';
       const css = m.css_minified ? '\u2713' : '\u2717';
-      return (m.tool || '\u2014') + '  JS' + js + ' CSS' + css;
+      const run = m.workflow_run ? ' <a href="' + runUrl(m.workflow_run) + '" style="text-decoration:none">#' + m.workflow_run_number + '</a>' : '';
+      return (m.tool || '\u2014') + '  JS' + js + ' CSS' + css + run;
     };
-    $('#meta-a').textContent = f(aMeta);
-    $('#meta-b').textContent = f(bMeta);
+    $('#meta-a').innerHTML = h(aMeta);
+    $('#meta-b').innerHTML = h(bMeta);
   }
 
   // ----- summary cards -----
