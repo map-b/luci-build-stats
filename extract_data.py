@@ -36,8 +36,9 @@ VARIANTS_META = {
     "no_css_esbuild":     {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": False, "tool": "esbuild"},
     "no_css_jsmin":       {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": False, "tool": "jsmin"},
     "no_minifier":        {"profile": "Default", "branch": "25.12",   "js_minified": False, "css_minified": False, "tool": None},
-    "snapshot_esbuild":   {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "esbuild"},
-    "snapshot_jsmin":     {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "jsmin"},
+    "snapshot_esbuild":            {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "esbuild"},
+    "snapshot_jsmin":              {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "jsmin"},
+    "without_PR_package_manager":  {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": True,  "tool": "jsmin"},
 }
 
 
