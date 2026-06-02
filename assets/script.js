@@ -118,12 +118,12 @@
     srcSelA.addEventListener('change', function () {
       selA.value = srcSelA.value;
       updateUrlParams(selA.value, selB.value, $('#delta-mode').checked);
-      render();
+      render(true);
     });
     srcSelB.addEventListener('change', function () {
       selB.value = srcSelB.value;
       updateUrlParams(selA.value, selB.value, $('#delta-mode').checked);
-      render();
+      render(true);
     });
   }
 
@@ -401,19 +401,32 @@
   function populateSourceFiles() {
     const sel = $('#src-file');
     const a = DATA.variants[$('#src-variant-a').value];
+    const b = DATA.variants[$('#src-variant-b').value];
+    const bMap = {};
+    b.installed_js.files.forEach(f => bMap[f.path] = f.size_bytes);
+    b.installed_css.files.forEach(f => bMap[f.path] = f.size_bytes);
     let files = a.installed_js.files
       .filter(f => f.content)
       .map(f => ({ ...f, type: 'js' }));
     const cssFiles = a.installed_css.files
       .filter(f => f.content)
       .map(f => ({ ...f, type: 'css' }));
-    files = files.concat(cssFiles).sort((x, y) => y.size_bytes - x.size_bytes);
+    files = files.concat(cssFiles).sort((x, y) => {
+      const diffX = Math.abs((bMap[x.path] || 0) - x.size_bytes);
+      const diffY = Math.abs((bMap[y.path] || 0) - y.size_bytes);
+      return diffY - diffX;
+    });
 
     const frag = document.createDocumentFragment();
     files.forEach(f => {
       const o = document.createElement('option');
       o.value = f.path;
-      o.textContent = '[' + f.type + '] ' + f.path.replace(/^\.\//, '') + ' (' + fmtBytes(f.size_bytes) + ')';
+      const bSize = bMap[f.path] || 0;
+      const diff = f.size_bytes - bSize;
+      const deltaStr = diff !== 0
+        ? ' ' + (diff >= 0 ? '+' : '-') + fmtBytes(Math.abs(diff))
+        : '';
+      o.textContent = '[' + f.type + '] ' + f.path.replace(/^\.\//, '') + ' (' + fmtBytes(f.size_bytes) + ')' + deltaStr;
       frag.appendChild(o);
     });
     sel.innerHTML = '';
@@ -630,11 +643,15 @@
   }
 
   // ----- main render -----
-  function render() {
-    const prevFile = $('#src-file').value;
-    populateSourceFiles();
-    if (prevFile && $('#src-file').querySelector('[value="' + prevFile.replace(/"/g, '\\"') + '"]')) {
-      $('#src-file').value = prevFile;
+  function render(preserveFile) {
+    if (preserveFile) {
+      const prevFile = $('#src-file').value;
+      populateSourceFiles();
+      if (prevFile && $('#src-file').querySelector('[value="' + prevFile.replace(/"/g, '\\"') + '"]')) {
+        $('#src-file').value = prevFile;
+      }
+    } else {
+      populateSourceFiles();
     }
     renderVariantMeta();
     renderBuildInfo();
