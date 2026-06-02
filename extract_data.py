@@ -27,6 +27,7 @@ IMAGE_PATTERNS = [
 ]
 
 MAX_JS_CONTENT_FILES = 15
+MAX_CSS_CONTENT_FILES = 15
 
 VARIANTS_META = {
     "esbuild":            {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": True,  "tool": "esbuild"},
@@ -109,6 +110,43 @@ def collect_installed_js(targets_dir: Path, content_paths: set | None = None) ->
     }
 
 
+def collect_installed_css(targets_dir: Path, content_paths: set | None = None) -> dict:
+    targz_path = find_targz(targets_dir)
+    if targz_path is None:
+        return {"total_size_bytes": 0, "file_count": 0, "files": []}
+    files = []
+    with open(targz_path, "rb") as fh:
+        tf = tarfile.open(fileobj=fh, mode="r:gz")
+        for member in tf.getmembers():
+            if member.name.endswith(".css") and member.isfile():
+                files.append({
+                    "path": member.name,
+                    "size_bytes": member.size,
+                })
+    files.sort(key=lambda x: x["size_bytes"], reverse=True)
+    total = sum(f["size_bytes"] for f in files)
+    for f in files:
+        f["content"] = None
+    if content_paths:
+        with open(targz_path, "rb") as fh:
+            tf2 = tarfile.open(fileobj=fh, mode="r:gz")
+            for entry in tf2.getmembers():
+                if entry.name in content_paths and entry.isfile():
+                    for f in files:
+                        if f["path"] == entry.name:
+                            try:
+                                raw = tf2.extractfile(entry).read()
+                                f["content"] = raw.decode("utf-8", errors="replace")
+                            except Exception:
+                                f["content"] = None
+                            break
+    return {
+        "total_size_bytes": total,
+        "file_count": len(files),
+        "files": files,
+    }
+
+
 def collect_build_info(variant_dir: Path) -> dict:
     targets_dir = variant_dir / "targets" / "malta" / "le"
     info = {
@@ -164,6 +202,7 @@ def extract_variant(variant_id: str, variant_dir: Path,
     pkgs = collect_packages(variant_dir)
     images = collect_images(targets_dir)
     installed_js = collect_installed_js(targets_dir, content_paths)
+    installed_css = collect_installed_css(targets_dir, content_paths)
     meta = VARIANTS_META.get(variant_id, {})
     total_pkg = sum(p["size_bytes"] for p in pkgs)
     total_img = sum(images.values())
@@ -173,6 +212,7 @@ def extract_variant(variant_id: str, variant_dir: Path,
         "packages": {"count": len(pkgs), "total_size_bytes": total_pkg, "list": pkgs},
         "images": {"count": len(images), "total_size_bytes": total_img, "list": images},
         "installed_js": installed_js,
+        "installed_css": installed_css,
     }
 
 
@@ -206,7 +246,7 @@ def main():
         print(f"  {vid} ...", file=sys.stderr)
         variants[vid] = extract_variant(vid, vdir)
 
-    # Determine global top content paths (union of each variant's top N)
+    # Determine global top content paths (union of each variant's top N JS + top N CSS)
     all_candidates = {}
     for v in variants.values():
         for i, f in enumerate(v["installed_js"]["files"]):
@@ -215,16 +255,28 @@ def main():
                 all_candidates[f["path"]] = max(all_candidates[f["path"]], f["size_bytes"])
     global_top = set(sorted(all_candidates, key=lambda p: all_candidates[p], reverse=True)
                      [:MAX_JS_CONTENT_FILES])
-    print(f"Global top {len(global_top)} files for content:",
+
+    all_candidates_css = {}
+    for v in variants.values():
+        for i, f in enumerate(v["installed_css"]["files"]):
+            if i < MAX_CSS_CONTENT_FILES and f["size_bytes"] > 0:
+                all_candidates_css.setdefault(f["path"], 0)
+                all_candidates_css[f["path"]] = max(all_candidates_css[f["path"]], f["size_bytes"])
+    global_top_css = set(sorted(all_candidates_css,
+                                key=lambda p: all_candidates_css[p], reverse=True)
+                         [:MAX_CSS_CONTENT_FILES])
+
+    content_paths = global_top | global_top_css
+    print(f"Global top {len(content_paths)} files for content (JS: {len(global_top)}, CSS: {len(global_top_css)}):",
           file=sys.stderr)
-    for p in sorted(global_top):
+    for p in sorted(content_paths):
         print(f"    {p}", file=sys.stderr)
 
     # Pass 2: re-extract with content for those paths
     print("Pass 2: reading content...", file=sys.stderr)
     for vid, vdir in dirs.items():
         print(f"  {vid} ...", file=sys.stderr)
-        variants[vid] = extract_variant(vid, vdir, content_paths=global_top)
+        variants[vid] = extract_variant(vid, vdir, content_paths=content_paths)
 
     # Collect build info per branch
     build_info = {}
