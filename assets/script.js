@@ -147,6 +147,21 @@
       '<article><header>LuCI <a href="' + luciCommitUrl + '">openwrt/luci@' + luciShort + '</a> <span>' + (info.luci_version || '') + '</span></header></article>';
   }
 
+  // ----- variant meta -----
+  function renderVariantMeta() {
+    const aId = $('#variant-a').value;
+    const bId = $('#variant-b').value;
+    const aMeta = DATA.variants[aId].meta;
+    const bMeta = DATA.variants[bId].meta;
+    const f = m => {
+      const js = m.js_minified ? '\u2713' : '\u2717';
+      const css = m.css_minified ? '\u2713' : '\u2717';
+      return (m.tool || '\u2014') + '  JS' + js + ' CSS' + css;
+    };
+    $('#meta-a').textContent = f(aMeta);
+    $('#meta-b').textContent = f(bMeta);
+  }
+
   // ----- summary cards -----
   function renderSummary() {
     const a = DATA.variants[$('#variant-a').value];
@@ -610,6 +625,7 @@
     if (prevFile && $('#src-file').querySelector('[value="' + prevFile.replace(/"/g, '\\"') + '"]')) {
       $('#src-file').value = prevFile;
     }
+    renderVariantMeta();
     renderBuildInfo();
     renderSummary();
     renderCharts();
