@@ -67,17 +67,19 @@ Replace `jsmin` (JS) and `csstidy` (CSS) in OpenWrt LuCI with modern minifiers t
 
 ## Why tdewolff/minify fails on JS
 
-The exact cause is not fully determined. Two potential issues:
+Every failing file produces the same error:
 
-1. **Top-level `return`** — LuCI modules use `return Network;` style exports, which are technically invalid ECMAScript outside a function body. minify's parser may reject them.
+```
+ERROR: cannot minify -: unexpected return in expression on line N and column 1
+```
 
-2. **`extend()` pattern** — The dynamic object construction (`baseclass.extend({ ... })`) may confuse minify's static analysis.
+LuCI modules use `return Network;` or `return baseclass.extend({...});` style exports at top level. ECMAScript only allows `return` inside a function body, so minify's parser rejects these files. The `extend()` call is not a separate problem — it's simply the value being returned.
 
-It is likely a combination of both. 8/11 files are affected.
+Files that do not use top-level `return` (e.g. `cbi.js`, `xhr.js`) minify successfully.
 
 ## Why cminify fails on CSS
 
-`dashboard_custom.css` contains modern CSS nesting:
+cminify outputs `Unexpected '{' in line 202, column 26` on `dashboard_custom.css`. Line 202 contains modern CSS nesting:
 
 ```css
 [data-darkmode="true"] {
@@ -87,7 +89,7 @@ It is likely a combination of both. 8/11 files are affected.
 }
 ```
 
-cminify's parser chokes on the `{ .Class { ... } }` nesting syntax.
+cminify's parser does not support `{ .Class { ... } }` nesting.
 
 ## Recommendation: esbuild for both JS and CSS
 
