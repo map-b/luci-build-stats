@@ -32,8 +32,14 @@
     return (abs / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
   }
 
+  function fmtBytesFull(b) {
+    const raw = Math.abs(b).toLocaleString() + ' B';
+    if (Math.abs(b) < 1024) return (b < 0 ? '-' : '') + raw;
+    return (b < 0 ? '-' : '') + raw + ' (' + fmtBytes(Math.abs(b)) + ')';
+  }
+
   function fmtPct(v) {
-    return (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
   }
 
   function parseVariantId(id) {
@@ -190,7 +196,7 @@
 
       const art = document.createElement('article');
       const sign = diff >= 0 ? '+' : '-';
-      const showPct = Math.abs(pct).toFixed(1) + '%';
+      const showPct = Math.abs(pct).toFixed(2) + '%';
       const showDiff = sign + fmtBytes(Math.abs(diff));
       const valueColor = diff > 0 ? 'var(--negative)' : diff < 0 ? 'var(--positive)' : 'var(--muted)';
       art.innerHTML =
@@ -291,9 +297,9 @@
                 }
                 if (isDeltaBool) {
                   const diff = bVals[i] - aVals[i];
-                  return ctx.parsed.x.toFixed(1) + '%  (' + (diff >= 0 ? '+' : '-') + fmtBytes(diff) + ')';
+                  return ctx.parsed.x.toFixed(2) + '%  (' + (diff >= 0 ? '+' : '-') + fmtBytes(diff) + ')';
                 }
-                return fmtBytes(ctx.parsed.x);
+                return fmtBytesFull(ctx.parsed.x);
               }
             }
           }
@@ -302,7 +308,7 @@
           x: {
             ticks: {
               callback: function (v) {
-                if (isDeltaBool) return v.toFixed(1) + '%';
+                if (isDeltaBool) return v.toFixed(2) + '%';
                 return fmtBytes(v);
               }
             }
