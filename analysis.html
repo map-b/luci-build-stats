@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuCI Minifier Analysis</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    #analysis-content table {
+      display: block;
+      overflow-x: auto;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+    #analysis-content table th,
+    #analysis-content table td {
+      padding: 0.25rem 0.6rem;
+    }
+    #analysis-content h2 {
+      margin-top: 1.5rem;
+    }
+    #analysis-content h3 {
+      margin-top: 1rem;
+    }
+    #analysis-content pre,
+    #analysis-content code {
+      font-size: 0.75rem;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <hgroup>
+        <h1>LuCI Minifier Analysis</h1>
+        <p><a href="index.html">← Back to Build Stats</a></p>
+      </hgroup>
+    </header>
+    <article id="analysis-content"></article>
+    <footer>
+      <small><a href="index.html">LuCI Build Stats</a></small>
+    </footer>
+  </main>
+  <script>
+    fetch('data/minifier-analysis.md')
+      .then(r => r.text())
+      .then(md => {
+        document.getElementById('analysis-content').innerHTML = marked.parse(md);
+      })
+      .catch(function () {
+        document.getElementById('analysis-content').innerHTML = '<p>Failed to load analysis.</p>';
+      });
+  </script>
+</body>
+</html>
