@@ -16,7 +16,7 @@
         <p>Comparing minification strategies across 7 build variants</p>
       </hgroup>
       <small style="display:block;font-size:0.65rem;color:var(--muted);line-height:1.4">
-        * All variants use OpenWrt 25.12 branch except the two snapshot variants which use OpenWrt main branch. LuCI is always on its master branch<br>
+        * All variants use OpenWrt 25.12 branch except the two snapshot variants which use OpenWrt main branch. LuCI is on master (includes <a href="https://github.com/openwrt/luci/pull/8593">PR #8593</a> — the package-manager changes that triggered this comparison)<br>
         * Only jsmin and esbuild differ as JS minifiers; CSStidy is used for CSS in all variants<br>
         * Two snapshot variants (esbuild, jsmin) included for cross-branch reference; Malta migrated to Generic image recipes, image sizes not directly comparable
       </small>
