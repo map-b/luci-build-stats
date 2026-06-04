@@ -39,6 +39,7 @@ VARIANTS_META = {
     "snapshot_esbuild":            {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "esbuild", "workflow_run": 26699393725, "workflow_run_number": 5},
     "snapshot_jsmin":              {"profile": "Generic", "branch": "snapshot", "js_minified": True,  "css_minified": True,  "tool": "jsmin",   "workflow_run": 26699549972, "workflow_run_number": 6},
     "without_PR_package_manager":  {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": True,  "tool": "jsmin",   "workflow_run": 26765403616, "workflow_run_number": 13},
+    "with_PR_v2":                  {"profile": "Default", "branch": "25.12",   "js_minified": True,  "css_minified": True,  "tool": "jsmin",   "workflow_run": 26973330502, "workflow_run_number": 14},
 }
 
 
